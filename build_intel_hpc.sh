@@ -172,9 +172,10 @@ case "${ARCH_TARGET}" in
 esac
 
 # Common flags for static linking
+# -static: Link all libraries statically (libstdc++, libgcc, libc)
 # -static-intel: Link Intel libraries statically
 # -qopenmp-link=static: Link OpenMP runtime statically
-STATIC_FLAGS="-static-intel"
+STATIC_FLAGS="-static -static-intel"
 OPENMP_FLAGS="-qopenmp -qopenmp-link=static"
 
 # Create output directory
