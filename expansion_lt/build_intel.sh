@@ -8,17 +8,19 @@
 # Arguments:
 #   module_version  - Intel compiler module version (default: 2023.1.0)
 #   build_method    - 'direct' or 'cmake' (default: direct)
-#   arch_target     - CPU architecture target (default: portable)
-#                     Options: portable, avx2, avx512, native
+#   arch_target     - CPU architecture target (default: multi)
+#                     Options: multi, portable, avx2, avx512, native
 #
 # Examples:
-#   ./build_intel.sh                              # Portable build (AVX2, runs everywhere)
-#   ./build_intel.sh 2023.1.0 direct portable    # Explicit portable build
+#   ./build_intel.sh                              # Multi-arch dispatch (recommended for mixed clusters)
+#   ./build_intel.sh 2023.1.0 direct multi       # Same as above
+#   ./build_intel.sh 2023.1.0 direct portable    # Explicit portable build (AVX2)
 #   ./build_intel.sh 2023.1.0 direct native      # Optimized for current CPU (not portable!)
 #   ./build_intel.sh 2023.1.0 direct avx512      # Requires AVX512 support
 #   ./build_intel.sh 2025.2.0 cmake avx2         # CMake build with AVX2
 #
 # Architecture targets:
+#   multi    - Multi-dispatch: Skylake-AVX512 baseline + Cascade Lake + Ice Lake paths
 #   portable - AVX2 baseline, works on most modern CPUs (Haswell 2013+)
 #   avx2     - Same as portable
 #   avx512   - Requires AVX512 (Skylake-X 2017+, may not work on all nodes)
@@ -36,7 +38,7 @@ BUILD_DIR="${SCRIPT_DIR}/build_intel"
 # Default values
 INTEL_VERSION="${1:-2023.1.0}"
 BUILD_METHOD="${2:-direct}"
-ARCH_TARGET="${3:-portable}"
+ARCH_TARGET="${3:-multi}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -88,6 +90,11 @@ ${CXX_COMPILER} --version | head -1
 
 # Set architecture flags based on target
 case "${ARCH_TARGET}" in
+    multi)
+        # Multi-dispatch: runtime selects best path for Skylake/Cascade Lake/Ice Lake
+        ARCH_FLAG="-axICELAKE-SERVER,CASCADELAKE -xSKYLAKE-AVX512"
+        echo_info "Architecture: Multi-dispatch (Skylake-AVX512 baseline + Cascade Lake + Ice Lake paths)"
+        ;;
     portable|avx2)
         # AVX2: Works on Haswell (2013) and newer - widely compatible
         ARCH_FLAG="-xCORE-AVX2"
@@ -105,14 +112,16 @@ case "${ARCH_TARGET}" in
         ;;
     *)
         echo_error "Unknown architecture target: ${ARCH_TARGET}"
-        echo_info "Valid targets: portable, avx2, avx512, native"
+        echo_info "Valid targets: multi, portable, avx2, avx512, native"
         exit 1
         ;;
 esac
 
 # Compilation flags
 # Using -qopenmp-link=static to avoid runtime dependency on libiomp5.so
-CXX_FLAGS="-std=c++14 -O3 ${ARCH_FLAG} -qopenmp -qopenmp-link=static"
+# -ipo: interprocedural optimization across translation units
+# -fp-model fast=2: aggressive floating-point optimizations
+CXX_FLAGS="-std=c++14 -O3 ${ARCH_FLAG} -qopenmp -qopenmp-link=static -ipo -fp-model fast=2"
 
 echo_info "Compilation flags: ${CXX_FLAGS}"
 
@@ -200,5 +209,5 @@ echo_info "Example: ${OUTPUT} --help"
 if [[ "${ARCH_TARGET}" == "native" ]]; then
     echo ""
     echo_warn "WARNING: This binary was built with -xHost and may not run on other machines."
-    echo_warn "For portable binaries, rebuild with: $0 ${INTEL_VERSION} ${BUILD_METHOD} portable"
+    echo_warn "For multi-arch build: $0 ${INTEL_VERSION} ${BUILD_METHOD} multi"
 fi

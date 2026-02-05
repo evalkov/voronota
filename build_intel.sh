@@ -7,12 +7,13 @@
 #
 # Arguments:
 #   module_version  - Intel compiler module version (default: 2025.2.0)
-#   arch_target     - CPU architecture target (default: native)
-#                     Options: native, avx2, avx512
+#   arch_target     - CPU architecture target (default: multi)
+#                     Options: multi, native, avx2, avx512
 #
 # Examples:
-#   ./build_intel.sh                          # Max performance for current CPU
-#   ./build_intel.sh 2025.2.0 native          # Same as above
+#   ./build_intel.sh                          # Multi-arch dispatch (recommended for mixed clusters)
+#   ./build_intel.sh 2025.2.0 multi           # Same as above
+#   ./build_intel.sh 2025.2.0 native          # Max performance for current CPU only
 #   ./build_intel.sh 2025.2.0 avx2            # Portable (Haswell 2013+)
 #   ./build_intel.sh 2025.2.0 avx512          # Requires Skylake-X 2017+
 #
@@ -23,7 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT="${SCRIPT_DIR}/voronota"
 
 INTEL_VERSION="${1:-2025.2.0}"
-ARCH_TARGET="${2:-native}"
+ARCH_TARGET="${2:-multi}"
 
 # Colors
 RED='\033[0;31m'
@@ -65,6 +66,10 @@ ${CXX} --version | head -1
 
 # Architecture flags
 case "${ARCH_TARGET}" in
+    multi)
+        ARCH_FLAG="-axICELAKE-SERVER,CASCADELAKE -xSKYLAKE-AVX512"
+        echo_info "Architecture: Multi-dispatch (Skylake-AVX512 baseline + Cascade Lake + Ice Lake paths)"
+        ;;
     native)
         ARCH_FLAG="-xHost"
         echo_warn "Architecture: Native (-xHost) - optimized for THIS CPU only"
@@ -79,7 +84,7 @@ case "${ARCH_TARGET}" in
         ;;
     *)
         echo_error "Unknown architecture: ${ARCH_TARGET}"
-        echo_info "Valid options: native, avx2, avx512"
+        echo_info "Valid options: multi, native, avx2, avx512"
         exit 1
         ;;
 esac
@@ -111,5 +116,5 @@ fi
 if [[ "${ARCH_TARGET}" == "native" ]]; then
     echo ""
     echo_warn "Binary optimized for this CPU - may not run on different nodes."
-    echo_warn "For portable build: $0 ${INTEL_VERSION} avx2"
+    echo_warn "For multi-arch build: $0 ${INTEL_VERSION} multi"
 fi
