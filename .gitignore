@@ -1,5 +1,6 @@
 /voronota
 /build
+/.build
 /tmp
 /CMakeFiles
 /cmake_install.cmake
